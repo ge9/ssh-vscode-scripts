@@ -1,0 +1,16 @@
+# source this in .profile
+if [ -n "$SSH_TTY" ]; then
+my_sock=$(echo $SSH_CONNECTION | sed 's/ /-/g')
+( (cd $SSH_VSCODE_SOCK_DIR && (
+(ls *-*) && for f in *-*; do
+if [ "$f" != "$my_sock" ] && ! printf "" | nc -w 2 -U -N $f; then
+rm $f
+fi
+done
+(ls s.*) && for d in s.*; do
+if [ ! -e $d/c ]; then
+rm -r $d
+fi
+done
+) > /dev/null 2>&1 &) )
+fi

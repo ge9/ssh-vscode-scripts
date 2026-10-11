@@ -1,0 +1,10 @@
+#!/bin/sh
+perl -e '
+use Fcntl ":flock";
+my $fd = pop @ARGV;
+my $flags = join "", map { s/^-+//r } grep { /^-/ } @ARGV;
+open(my $f, ">&=", $fd) or exit 2;
+my $op = $flags =~ /u/ ? LOCK_UN : $flags =~ /s/ ? LOCK_SH : LOCK_EX;
+$op |= LOCK_NB if $flags =~ /n/ && $op != LOCK_UN;
+flock($f, $op) or exit 1;
+' -- "$@"

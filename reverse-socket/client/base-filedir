@@ -1,0 +1,24 @@
+if [ -z "$SSH_VSCODE_NC_OVERRIDE" ]; then
+  SSH_VSCODE_NC_OVERRIDE="nc -U -N"
+fi
+resolve_path () {
+  arg="$1"
+  case "$arg" in
+  /*)
+    true;;
+  *)
+    arg=$PWD/$arg;;
+  esac
+  realpath -s "$arg"
+  #python -c "import sys;import os; print(os.path.normpath(os.path.abspath(sys.argv[1])))" "$arg"
+}
+. $(dirname $0)/../set-sockpath
+(printf $ssh_vscode_cmd'\0%s' $SSH_VSCODE_REMOTE_NAME
+for arg; do
+  abspath=$(resolve_path "$arg")
+  if [ -d "$abspath" ]; then
+    printf '\0%s/' "$abspath"
+  else
+    printf '\0%s' "$abspath"
+  fi
+done ) | $SSH_VSCODE_NC_OVERRIDE $ssh_vscode_sockpath
