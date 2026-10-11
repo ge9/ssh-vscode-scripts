@@ -1,0 +1,17 @@
+# source this in .profile
+if [ -n "$SSH_TTY" ]; then
+. $SSH_VSCODE_PREFIX/reverse-socket/client/set-nc-opt
+my_sock=$(echo $SSH_CONNECTION | sed 's/ /-/g')
+if [ -z "$SSH_VSCODE_SOCK_DIR" ]; then
+SSH_VSCODE_SOCK_DIR="$HOME/.cache/ssh-sock"
+fi
+( (cd $SSH_VSCODE_SOCK_DIR && (
+    (ls s.*) && for d in s.*; do
+    if [ "$(basename $(readlink $d/c))" != "$my_sock" ] && ! printf "" | $SSH_VSCODE_NC_CMD_TIMEOUT$(pwd)/$d/c; then
+        rm -f $(readlink $d/c)
+        rm -f $(readlink $d/2)
+        rm -r $d
+    fi
+    done
+) > /dev/null 2>&1 &) )
+fi

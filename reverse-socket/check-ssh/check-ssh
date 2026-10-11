@@ -1,0 +1,79 @@
+#!/bin/sh
+
+get_args() {
+    _pid=$1
+
+    # Linux (or other environemt with procfs)
+    if [ -r "/proc/$_pid/cmdline" ]; then
+        tr '\0' '\n' < "/proc/$_pid/cmdline"
+        return
+    fi
+
+    case $(uname -s) in
+        FreeBSD|DragonFly)
+            _out=$(sysctl -b "kern.proc.args.$_pid" 2>/dev/null | tr '\0' '\n')
+            if [ -n "$_out" ]; then
+                printf '%s\n' "$_out"
+                return
+            fi
+            ;;
+        Darwin)
+            # kern.procargs2: [argc:int32][exec_path\0][padding \0...][argv0\0 argv1\0 ...][env...]
+            _argc=$(sysctl -b "kern.procargs2.$_pid" 2>/dev/null | od -An -N4 -t d4 | tr -d ' ')
+            if [ -n "$_argc" ] && [ "$_argc" -gt 0 ] 2>/dev/null; then
+                _out=$(sysctl -b "kern.procargs2.$_pid" 2>/dev/null | tail -c +5 | tr '\0' '\n' |
+                    awk -v n="$_argc" '$0 == "" { next } { if (++i > 1 && i <= n + 1) print }')
+                if [ -n "$_out" ]; then
+                    printf '%s\n' "$_out"
+                    return
+                fi
+            fi
+            ;;
+    esac
+
+    # fallback: split by whitespace
+    ps -o args= -p "$_pid" 2>/dev/null | tr -s ' ' '\n'
+}
+
+scan() {
+    skip=0
+    first=1
+    while IFS= read -r arg; do
+        if [ "$first" = 1 ]; then first=0; continue; fi   # skip argv[0] ("ssh")
+        if [ "$skip" = 1 ]; then skip=0; continue; fi     # argument
+        case $arg in
+            --)  return 0 ;;
+            -?*) ;;
+            *)   continue ;;
+        esac
+        opts=${arg#-}
+        while [ -n "$opts" ]; do
+            c=${opts%"${opts#?}"}
+            opts=${opts#?}
+            case $c in
+                N|s) return 1 ;;
+                [bcDEeFIiJLlmOopQRSwW])
+                    [ -z "$opts" ] && skip=1
+                    break ;;
+            esac
+        done
+    done
+    return 0
+}
+
+# search for ssh process
+pid=$$
+n=0
+while [ "$n" -lt 10 ]; do
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+    [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null || exit 0
+    first=$(get_args "$pid" | head -n 1)
+    case ${first##*/} in
+        ssh)
+            get_args "$pid" | scan
+            exit $?
+            ;;
+    esac
+    n=$((n + 1))
+done
+exit 0

@@ -1,0 +1,19 @@
+if [ `uname -s` = "Linux" ]; then
+    export SSH_VSCODE_REALPATH_CMD="realpath -s"
+else
+    export SSH_VSCODE_REALPATH_CMD="$SSH_VSCODE_PREFIX/reverse-socket/client/realpath-s-python"
+    # set timeout for socket cleaning. be careful of the trailing space
+fi
+if ! which nc > /dev/null 2>&1; then #socat
+    export SSH_VSCODE_NC_CMD="socat -t 10000000000 - UNIX-CONNECT:"
+    export SSH_VSCODE_NC_CMD_TIMEOUT="socat -T 2 - UNIX-CONNECT:"
+elif readlink -f "$(which nc)" | grep -q ncat; then #Ncat
+    export SSH_VSCODE_NC_CMD="nc -U "
+    export SSH_VSCODE_NC_CMD_TIMEOUT="$SSH_VSCODE_PREFIX/reverse-socket/client/ncat-wrapper "
+elif nc --version > /dev/null 2>&1; then #GNU netcat is not supported
+    export SSH_VSCODE_NC_CMD="error-gnu-netcat-is-not-supported-but-PR-is-welcome"
+    export SSH_VSCODE_NC_CMD_TIMEOUT="error-gnu-netcat-is-not-supported-but-PR-is-welcome"
+else # BSD netcat
+    export SSH_VSCODE_NC_CMD="nc -U -N "
+    export SSH_VSCODE_NC_CMD_TIMEOUT="nc -w 2 -U -N "
+fi

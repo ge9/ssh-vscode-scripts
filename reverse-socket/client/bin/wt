@@ -1,0 +1,3 @@
+#!/bin/sh
+ssh_vscode_cmd=wt
+. $(dirname $0)/../base-dir

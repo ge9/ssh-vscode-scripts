@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+#
+# Remove every per-version artifact under ~/.vscode-server except the running
+# server(s), and replace removed versions with a fake server that only prints
+# an error, so outdated clients cannot silently re-install an old server.
+#
+# Per-version artifacts: bin/<hash>/, cli/servers/Stable-<hash>/, code-<hash>,
+# .<hash>.{log,pid,token}, .cli.*.log. data/ and extensions/ are never touched.
+#
+# If no server is running, the newest one (by mtime) is kept.
+#
+# [Usage]
+# 
+
+set -eo pipefail
+
+DRY_RUN=0
+case "${1:-}" in
+  "") ;;
+  --dry-run) DRY_RUN=1 ;;
+  *) echo "usage: $0 [--dry-run]" >&2; exit 1 ;;
+esac
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+FAKE_SRC="$SCRIPT_DIR/fake-server.sh"
+ROOT="$HOME/.vscode-server"
+MARKER='# FAKE-OUTDATED-SERVER'
+HASH_RE='[0-9a-f]{40}'
+
+[[ -d $ROOT ]] || { echo "$ROOT not found."; exit 0; }
+[[ -f $FAKE_SRC ]] || { echo "missing $FAKE_SRC" >&2; exit 1; }
+
+shopt -s nullglob
+
+run() {
+  if (( DRY_RUN )); then echo "  [dry-run] $*"; else "$@"; fi
+}
+
+is_fake() {
+  [[ -f $1 ]] && head -c 512 -- "$1" 2>/dev/null | grep -aqxF "$MARKER"
+}
+
+install_fake() {
+  local dest=$1
+  is_fake "$dest" && return 0
+  echo "  FAKE   : ${dest#$ROOT/}"
+  run rm -rf -- "$dest"
+  run mkdir -p -- "$(dirname "$dest")"
+  run cp -- "$FAKE_SRC" "$dest"
+  run chmod +x -- "$dest"
+}
+
+# ---- running servers ----
+mapfile -t running < <(
+  ps -u "$(id -u)" -o args= \
+    | grep -oE "\.vscode-server/(bin/|cli/servers/Stable-|code-)$HASH_RE" \
+    | grep -oE "$HASH_RE" | sort -u || true
+)
+
+# ---- collect installed versions ----
+declare -A is_exec is_bin newest_mtime
+
+note_real() {
+  local h=$1 t
+  t=$(stat -c %Y -- "$2")
+  if (( t > ${newest_mtime[$h]:-0} )); then newest_mtime[$h]=$t; fi
+}
+
+for p in "$ROOT"/bin/*/; do
+  p=${p%/}; h=${p##*/}
+  [[ $h =~ ^${HASH_RE}$ ]] || continue
+  is_bin[$h]=1
+  is_fake "$p/bin/code-server" || note_real "$h" "$p"
+done
+
+for p in "$ROOT"/cli/servers/Stable-*/; do
+  p=${p%/}; h=${p##*/Stable-}
+  [[ $h =~ ^${HASH_RE}$ ]] || continue
+  is_exec[$h]=1
+  note_real "$h" "$p"
+done
+
+for p in "$ROOT"/code-*; do
+  h=${p##*/code-}
+  [[ $h =~ ^${HASH_RE}$ ]] || continue
+  is_exec[$h]=1
+  is_fake "$p" || note_real "$h" "$p"
+done
+
+# ---- decide what to keep ----
+declare -A keep
+for h in "${running[@]}"; do keep[$h]=1; done
+
+if (( ${#running[@]} == 0 )); then
+  best=0; newest=""
+  for h in "${!newest_mtime[@]}"; do
+    if (( newest_mtime[$h] > best )); then best=${newest_mtime[$h]}; newest=$h; fi
+  done
+  if [[ -n $newest ]]; then keep[$newest]=1; echo "No running server; keeping newest: $newest"; fi
+fi
+for h in "${!keep[@]}"; do echo "KEEP: $h"; done
+echo
+
+# ---- remove other versions and place fakes ----
+declare -A all
+for h in "${!is_exec[@]}" "${!is_bin[@]}"; do all[$h]=1; done
+
+for h in "${!all[@]}"; do
+  [[ -n ${keep[$h]:-} ]] && continue
+
+  if [[ -n ${is_exec[$h]:-} ]]; then
+    if [[ -d $ROOT/cli/servers/Stable-$h ]]; then
+      echo "  DELETE : cli/servers/Stable-$h"
+      run rm -rf -- "$ROOT/cli/servers/Stable-$h"
+    fi
+    install_fake "$ROOT/code-$h"
+  fi
+
+  if [[ -n ${is_bin[$h]:-} ]]; then
+    if ! is_fake "$ROOT/bin/$h/bin/code-server"; then
+      echo "  DELETE : bin/$h"
+      run rm -rf -- "$ROOT/bin/$h"
+    fi
+    install_fake "$ROOT/bin/$h/bin/code-server"
+  fi
+done
+
+# ---- stray per-version files ----
+re="^\.(${HASH_RE})\.(log|pid|token)$"
+for f in "$ROOT"/.[0-9a-f]*; do
+  n=${f##*/}
+  [[ $n =~ $re ]] || continue
+  [[ -n ${keep[${BASH_REMATCH[1]}]:-} ]] && continue
+  run rm -f -- "$f"
+done
+
+for f in "$ROOT"/.cli.*.log; do
+  h=$(grep -oE "$HASH_RE" <<<"${f##*/}" || true)
+  [[ -n $h && -n ${keep[$h]:-} ]] && continue
+  run rm -f -- "$f"
+done
+
+# ---- rewrite lru.json with the surviving servers ----
+lru="$ROOT/cli/servers/lru.json"
+if [[ -f $lru ]]; then
+  entries=()
+  for h in "${!keep[@]}"; do
+    if [[ -d $ROOT/cli/servers/Stable-$h ]]; then entries+=("\"Stable-$h\""); fi
+  done
+  json="[$(IFS=,; echo "${entries[*]}")]"
+  if (( DRY_RUN )); then echo "  [dry-run] lru.json <- $json"; else echo "$json" > "$lru"; fi
+fi
+
+echo
+echo "=== Done ==="
+du -sh "$ROOT" 2>/dev/null || true

@@ -1,0 +1,11 @@
+unset BASH_ENV
+function sleep {
+    if [ "$1" = "180" ]; then
+        mkfifo $PREFIX/tmp/sleep.tmp
+        exec 9<> $PREFIX/tmp/sleep.tmp
+        rm -f $PREFIX/tmp/sleep.tmp
+        read -t 10 <&9
+    else
+    /bin/sleep $1
+    fi
+}

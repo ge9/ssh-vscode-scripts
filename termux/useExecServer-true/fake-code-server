@@ -1,0 +1,10 @@
+#!/bin/sh
+#remove myself and run the real code-server after fix-shebang
+cd $(dirname $0)/../..
+ROOT=$(pwd)
+rm -rf $ROOT/server
+mv $ROOT.staging*/server $ROOT/server
+rm -rf $ROOT.staging*
+cd $ROOT/server
+. $SSH_VSCODE_PREFIX/termux/fix-main
+exec $ROOT/server/bin/code-server "$@"

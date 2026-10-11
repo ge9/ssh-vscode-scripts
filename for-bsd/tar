@@ -1,0 +1,36 @@
+#!/bin/sh
+/usr/bin/tar "$@"
+ret=$?
+if [ "$2" = "vscode-server.tar.gz" ]; then
+  (
+  cd vscode-server-linux-x64/
+  ln -sf $SSH_VSCODE_PREFIX/for-bsd/node ./node
+  $SSH_VSCODE_PREFIX/for-bsd/rebuild-native.sh
+  sed -i.bak 's|switch(process.platform)|switch("linux")|' "./out/vs/platform/terminal/node/ptyHostMain.js"
+  sed -i.bak 's/"inotify":"fs-events"/"inotify":"kqueue"/' "./out/vs/platform/files/node/watcher/watcherMain.js"
+  cp $SSH_VSCODE_PREFIX/vsda-vsce/vsda-index.js ./node_modules/vsda/index.js
+  cp $SSH_VSCODE_PREFIX/vsda-vsce/vsce-sign.js ./node_modules/@vscode/vsce-sign/bin/vsce-sign
+  target=$(node -p 'process.platform + "-" + process.arch')
+  rg_dest=./node_modules/@vscode/ripgrep-universal/bin/$target
+  mkdir -p $rg_dest
+  ln -sf $SSH_VSCODE_PREFIX/for-bsd/rg $rg_dest/
+# NOTE: ARM code path is not tested
+node - <<'EOF'
+const fs = require('fs');
+const f = 'out/server-main.js';
+const t = fs.readFileSync(f, 'utf8');
+if (t.includes('[process.arch]||')) { console.log('already patched'); process.exit(0); }
+const re = /return (\w+)\.debug\("ComputeTargetPlatform:",(\w+)\),\2\}/g;
+const n = (t.match(re) || []).length;
+console.log('matches', n);
+if (n === 1) {
+  fs.copyFileSync(f, f + '.bak');
+  fs.writeFileSync(f, t.replace(re, (_, l, v) =>
+    `${v}==="web"&&(${v}={x64:"linux-x64",arm64:"linux-arm64",arm:"linux-armhf"}[process.arch]||${v});` +
+    `return ${l}.debug("ComputeTargetPlatform:",${v}),${v}}`));
+  console.log('patched');
+}
+EOF
+  )
+fi
+return $ret

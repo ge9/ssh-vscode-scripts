@@ -1,0 +1,12 @@
+unset BASH_ENV
+tar () {
+  /data/data/com.termux/files/usr/bin/tar "$@"
+  RETURN=$?
+  if [ "$2" == "vscode-server.tar.gz" ]; then
+    (
+    cd vscode-server-linux-arm64/
+    . $SSH_VSCODE_PREFIX/termux/fix-main
+    )
+  fi
+  return $RETURN
+}
