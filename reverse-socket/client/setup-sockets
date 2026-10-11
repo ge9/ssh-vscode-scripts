@@ -1,0 +1,17 @@
+# usage: set `remote_name` and then source this script in .bashrc etc. (.profile won't work for VS Code)
+if [ -z "$SSH_VSCODE_REMOTE_NAME" ] && [ -n "$SSH_CONNECTION" ]; then
+  export SSH_VSCODE_REMOTE_NAME=$remote_name
+  if [ -z "$SSH_VSCODE_SOCK_DIR" ]; then
+    export SSH_VSCODE_SOCK_DIR="$HOME/.cache/ssh-sock"
+  fi
+  sockdir=$(mktemp -d $SSH_VSCODE_SOCK_DIR/s.XXXXXX)
+  if [ -n "$SSH_AUTH_SOCK" ]; then
+    ln -s "$SSH_AUTH_SOCK" "$sockdir/s"
+  fi
+  export SSH_AUTH_SOCK="$sockdir/s"
+  sock_path=$SSH_VSCODE_SOCK_DIR/$(echo $SSH_CONNECTION | sed 's/ /-/g')
+  ln -s $sock_path "$sockdir/c"
+  # for FreeBSD VS Code
+  ln -s $sock_path-2 "$sockdir/2"
+  export PATH=$SSH_VSCODE_PREFIX/reverse-socket/client/bin:$PATH
+fi

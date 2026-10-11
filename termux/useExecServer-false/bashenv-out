@@ -1,0 +1,2 @@
+# used for useLocalServer=true
+BASH_ENV=$SSH_VSCODE_PREFIX/termux/useExecServer-false/bashenv

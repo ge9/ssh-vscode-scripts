@@ -1,0 +1,18 @@
+#!/bin/sh
+# 標準入力のリクエストを最新のソケットへそのまま流し、応答を標準出力に出す
+SOCK_DIR=$HOME/.cache/ssh-sock
+
+die() {
+  echo "ssh-vscode-shim: $*" >&2
+  exit 1
+}
+
+sock=$(ls -td -- "$SOCK_DIR"/*/ 2>/dev/null | while IFS= read -r dir; do
+  if [ -S "${dir}2" ]; then
+    echo "${dir}2"
+    break
+  fi
+done)
+[ -n "$sock" ] || die "no socket in $SOCK_DIR"
+
+exec nc -U -w 120 "$sock"

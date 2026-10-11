@@ -1,0 +1,24 @@
+#!/bin/sh
+if [ -z "$SSH_ORIGINAL_COMMAND" ]; then
+    exec $SHELL -l
+fi
+if [ ! -t 0 ] && ([ -z "$SSH_ORIGINAL_COMMAND" ] || [ "$SSH_ORIGINAL_COMMAND" = "sh" ] || [ "$SSH_ORIGINAL_COMMAND" = "bash" ]); then #VS Code
+    export VSCODE_SERVER_CUSTOM_GLIBC_LINKER='/data/data/com.termux/files/usr/glibc/lib/ld-linux-aarch64.so.1'
+    export VSCODE_SERVER_CUSTOM_GLIBC_PATH='/data/data/com.termux/files/usr/glibc/lib/'
+    export VSCODE_SERVER_PATCHELF_PATH='/data/data/com.termux/files/usr/glibc/bin/patchelf'
+    export XDG_RUNTIME_DIR=$TMPDIR
+    export SSH_VSCODE_PREFIX=/path/to/ssh-vscode-scripts
+    # useExecServer=true
+    ( ( $SSH_VSCODE_PREFIX/useExecServer-true/fix-script & ) )
+    # # useLocalServer=true
+    export BASH_ENV=$SSH_VSCODE_PREFIX/termux/useExecServer-true/builtin-sleep-180-out
+    # # useLocalServer=false
+    # export BASH_ENV=$SSH_VSCODE_PREFIX/termux/useExecServer-true/builtin-sleep-180
+    # useExecServer=true
+    # # useLocalServer=true
+    # export BASH_ENV=$SSH_VSCODE_PREFIX/termux/useExecServer-false/bashenv-out
+    # # useLocalServer=false
+    # export BASH_ENV=$SSH_VSCODE_PREFIX/termux/useExecServer-false/bashenv
+    exec bash
+fi
+eval "$SSH_ORIGINAL_COMMAND"

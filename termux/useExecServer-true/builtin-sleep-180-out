@@ -1,0 +1,5 @@
+# for useLocalServer:true
+export BASH_ENV=$SSH_VSCODE_PREFIX/termux/useExecServer-true/builtin-sleep-180
+sh () {
+    bash "$@"
+}

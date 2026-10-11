@@ -1,0 +1,5 @@
+#!/bin/sh
+cd ~/.vscode-server
+rm -f code-*
+rm -rf bin
+rm -rf cli
