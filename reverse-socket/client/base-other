@@ -1,0 +1,6 @@
+. $(dirname $0)/../set-sockpath
+(printf $ssh_vscode_cmd'\0%s' $SSH_VSCODE_REMOTE_NAME
+if [ -n "$1" ]; then
+  cd "$1"
+fi
+printf '\0%s' "$PWD" ) | nc -U -N $ssh_vscode_sockpath

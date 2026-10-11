@@ -1,0 +1,11 @@
+unset BASH_ENV
+tar() {
+    . $SSH_VSCODE_PREFIX/for-bsd/tar
+}
+flock() {
+    . $SSH_VSCODE_PREFIX/for-bsd/flock
+}
+uname() {
+    . $SSH_VSCODE_PREFIX/for-bsd/uname
+}
+export PATH=$SSH_VSCODE_PREFIX/vsda-vsce/bin:$PATH
