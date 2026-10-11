@@ -1,0 +1,18 @@
+#!/bin/this-is-a-dummy-for-syntax-highlighting
+sed -i '1a unset LD_PRELOAD' bin/code-server
+# termux-fix-shebang bin/code-server
+# termux-fix-shebang (like above) may not work for first connection after update for unknown reason, if `/bin/sh` doesn't exist
+# we can set LD_PRELOAD in bashenv-out or outside, but fixing shebang is better
+sed -i "1i #!$PREFIX/bin/sh" bin/code-server
+termux-fix-shebang bin/helpers/check-requirements.sh
+termux-fix-shebang bin/remote-cli/code
+sed -i '1a unset LD_PRELOAD' bin/remote-cli/code
+sed -i '1a export PATH=$SSH_VSCODE_PREFIX/vsda-vsce/bin-termux:$PATH' "bin/code-server"
+
+vsce="./node_modules/@vscode/vsce-sign/bin/vsce-sign"
+cp $SSH_VSCODE_PREFIX/vsda-vsce/vsce-sign.js $vsce
+termux-fix-shebang $vsce
+# we also have to fix ptyHostMain.js to make "Update SSH_AUTH_SOCK" work in old Android that doesn't have `/bin/sh`
+F=out/vs/platform/terminal/node/ptyHostMain.js
+cp -n $F $F.orig
+sed -i -E 's#let ([A-Za-z_$]+)=this\.shellLaunchConfig;if\(!\1\.executable\)throw new Error\("IShellLaunchConfig\.executable not set"\);#let \1=this.shellLaunchConfig;\1.executable==="/bin/sh"\&\&(\1.executable="/data/data/com.termux/files/usr/bin/sh");if(!\1.executable)throw new Error("IShellLaunchConfig.executable not set");#' $F

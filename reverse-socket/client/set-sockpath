@@ -1,0 +1,10 @@
+ssh_vscode_sockpath=$SSH_AUTH_SOCK
+get_sockpath () {
+  if ! echo $ssh_vscode_sockpath | grep -q '^'$SSH_VSCODE_SOCK_DIR/'.*/s$'; then
+    ssh_vscode_sockpath=$(readlink $ssh_vscode_sockpath)
+  fi
+}
+# Do this twice to support VS Code + shpool
+get_sockpath
+get_sockpath
+ssh_vscode_sockpath=$(dirname $ssh_vscode_sockpath)/c

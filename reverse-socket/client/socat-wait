@@ -1,0 +1,2 @@
+#!/bin/sh
+exec socat -t 10000000000 - UNIX-CONNECT:$1,shut-none

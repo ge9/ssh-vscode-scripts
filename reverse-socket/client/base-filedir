@@ -1,0 +1,20 @@
+resolve_path () {
+  arg="$1"
+  case "$arg" in
+  /*)
+    true;;
+  *)
+    arg=$PWD/$arg;;
+  esac
+  $SSH_VSCODE_REALPATH_CMD "$arg"
+}
+. $(dirname $0)/../set-sockpath
+(printf $ssh_vscode_cmd'\0%s' $SSH_VSCODE_REMOTE_NAME
+for arg; do
+  abspath=$(resolve_path "$arg")
+  if [ -d "$abspath" ]; then
+    printf '\0%s/' "$abspath"
+  else
+    printf '\0%s' "$abspath"
+  fi
+done ) | $SSH_VSCODE_NC_CMD$ssh_vscode_sockpath
